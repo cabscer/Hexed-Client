@@ -1,13 +1,16 @@
 -- ============================================
--- HEXED GUI FRAMEWORK v2.0
+-- HEXED GUI FRAMEWORK v2.1
 -- Obsidian-inspired Resizable GUI for Roblox
+-- Fixed: Panel grid layout, 2x2 panels, full feature integration
 -- ============================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
 local Hexed = {}
@@ -101,7 +104,6 @@ local function Tween(instance, properties, duration, easingStyle, easingDirectio
     duration = duration or 0.2
     easingStyle = easingStyle or Enum.EasingStyle.Quart
     easingDirection = easingDirection or Enum.EasingDirection.Out
-
     local tween = TweenService:Create(instance, TweenInfo.new(duration, easingStyle, easingDirection), properties)
     tween:Play()
     return tween
@@ -200,7 +202,7 @@ function Hexed:BuildGUI()
     })
 
     -- Fix title bar corners
-    local titleFix = Create("Frame", {
+    Create("Frame", {
         Parent = self.TitleBar,
         Size = UDim2.new(1, 0, 0, 10),
         Position = UDim2.new(0, 0, 1, -10),
@@ -419,7 +421,7 @@ function Hexed:BuildGUI()
         self:ToggleSettings()
     end)
 
-    -- Panel Grid
+    -- Panel Grid - FIXED: Proper 2x2 grid layout
     self.PanelGrid = Create("Frame", {
         Name = "PanelGrid",
         Parent = self.ContentArea,
@@ -450,7 +452,7 @@ function Hexed:BuildGUI()
         Size = UDim2.new(1, -32, 1, 0),
         Position = UDim2.new(0, 16, 0, 0),
         BackgroundTransparency = 1,
-        Text = "● Connected    FPS: 60    Ping: 24ms    v2.0.0",
+        Text = "● Connected    FPS: 60    Ping: 24ms    v2.1.0",
         Font = Enum.Font.GothamMedium,
         TextSize = 11,
         TextColor3 = self.Theme.TextSecondary,
@@ -469,7 +471,7 @@ function Hexed:BuildGUI()
             self.FPS = math.floor(self.FrameCount / (now - self.LastFPSTime))
             self.FrameCount = 0
             self.LastFPSTime = now
-            self.StatusText.Text = string.format("● Connected    FPS: %d    Ping: --ms    v2.0.0", self.FPS)
+            self.StatusText.Text = string.format("● Connected    FPS: %d    Ping: --ms    v2.1.0", self.FPS)
         end
     end)
 
@@ -677,7 +679,7 @@ function Hexed:AddTab(name, icon)
         self:SwitchTab(tab)
     end)
 
-    -- Content Frame
+    -- Content Frame - FIXED: Proper grid layout for 2x2 panels
     tab.Content = Create("Frame", {
         Name = name .. "Content",
         Parent = self.PanelGrid,
@@ -686,13 +688,23 @@ function Hexed:AddTab(name, icon)
         Visible = false,
     })
 
-    local gridLayout = Create("UIGridLayout", {
+    -- FIXED: Use Frame with UIGridLayout for proper 2x2 grid
+    local gridFrame = Create("Frame", {
+        Name = "Grid",
         Parent = tab.Content,
-        CellSize = UDim2.new(0.5, -self.Config.PanelGap / 2, 0.5, -self.Config.PanelGap / 2),
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+    })
+
+    local gridLayout = Create("UIGridLayout", {
+        Parent = gridFrame,
+        CellSize = UDim2.new(0.5, -math.floor(self.Config.PanelGap / 2), 0.5, -math.floor(self.Config.PanelGap / 2)),
         CellPadding = UDim2.new(0, self.Config.PanelGap, 0, self.Config.PanelGap),
         SortOrder = Enum.SortOrder.LayoutOrder,
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         VerticalAlignment = Enum.VerticalAlignment.Center,
+        FillDirection = Enum.FillDirection.Horizontal,
+        StartCorner = Enum.StartCorner.TopLeft,
     })
 
     table.insert(self.Tabs, tab)
@@ -722,16 +734,16 @@ function Hexed:SwitchTab(tab)
 end
 
 -- ============================================
--- PANEL SYSTEM
+-- PANEL SYSTEM - FIXED
 -- ============================================
 function Hexed:AddPanel(tab, title, icon)
     local panel = Create("Frame", {
         Name = title .. "Panel",
-        Parent = tab.Content,
+        Parent = tab.Content.Grid,
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = self.Theme.BackgroundSecondary,
         BorderSizePixel = 0,
-        LayoutOrder = #tab.Content:GetChildren(),
+        LayoutOrder = #tab.Content.Grid:GetChildren() - 1,
     })
 
     Create("UICorner", {
@@ -760,7 +772,7 @@ function Hexed:AddPanel(tab, title, icon)
         TextTransparency = 0.5,
     })
 
-    -- Panel Content
+    -- Panel Content - FIXED: Proper scrolling frame
     local content = Create("ScrollingFrame", {
         Name = "Content",
         Parent = panel,
@@ -1099,6 +1111,124 @@ function Hexed:CreateButton(parent, text, callback)
     return btn
 end
 
+function Hexed:CreateColorPicker(parent, text, defaultColor, callback)
+    local frame = Create("Frame", {
+        Parent = parent,
+        Size = UDim2.new(1, 0, 0, 32),
+        BackgroundTransparency = 1,
+    })
+
+    local label = Create("TextLabel", {
+        Parent = frame,
+        Size = UDim2.new(1, -50, 1, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = self.Theme.TextPrimary,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    local colorBtn = Create("TextButton", {
+        Parent = frame,
+        Size = UDim2.new(0, 32, 0, 22),
+        Position = UDim2.new(1, -32, 0.5, -11),
+        BackgroundColor3 = defaultColor,
+        Text = "",
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+    })
+
+    Create("UICorner", { Parent = colorBtn, CornerRadius = UDim.new(0, 4) })
+
+    Create("UIStroke", {
+        Parent = colorBtn,
+        Color = self.Theme.Border,
+        Thickness = 1,
+    })
+
+    colorBtn.MouseButton1Click:Connect(function()
+        -- Simple color cycle for now
+        local colors = {
+            Color3.fromRGB(255, 0, 0),
+            Color3.fromRGB(0, 255, 0),
+            Color3.fromRGB(0, 0, 255),
+            Color3.fromRGB(255, 255, 0),
+            Color3.fromRGB(255, 0, 255),
+            Color3.fromRGB(0, 255, 255),
+            Color3.fromRGB(255, 255, 255),
+        }
+        local current = colorBtn.BackgroundColor3
+        local nextIdx = 1
+        for i, c in ipairs(colors) do
+            if c == current then
+                nextIdx = (i % #colors) + 1
+                break
+            end
+        end
+        colorBtn.BackgroundColor3 = colors[nextIdx]
+        if callback then callback(colors[nextIdx]) end
+    end)
+
+    return { Frame = frame, Get = function() return colorBtn.BackgroundColor3 end }
+end
+
+function Hexed:CreateInput(parent, text, default, callback)
+    local frame = Create("Frame", {
+        Parent = parent,
+        Size = UDim2.new(1, 0, 0, 60),
+        BackgroundTransparency = 1,
+    })
+
+    local label = Create("TextLabel", {
+        Parent = frame,
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 12,
+        TextColor3 = self.Theme.TextSecondary,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    local input = Create("TextBox", {
+        Parent = frame,
+        Size = UDim2.new(1, 0, 0, 32),
+        Position = UDim2.new(0, 0, 0, 24),
+        BackgroundColor3 = self.Theme.BackgroundTertiary,
+        Text = default or "",
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = self.Theme.TextPrimary,
+        ClearTextOnFocus = false,
+        BorderSizePixel = 0,
+    })
+
+    Create("UICorner", { Parent = input, CornerRadius = UDim.new(0, 6) })
+    Create("UIPadding", { Parent = input, PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) })
+
+    input.FocusLost:Connect(function()
+        if callback then callback(input.Text) end
+    end)
+
+    return { Frame = frame, Get = function() return input.Text end }
+end
+
+function Hexed:CreateLabel(parent, text)
+    local label = Create("TextLabel", {
+        Parent = parent,
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 12,
+        TextColor3 = self.Theme.TextSecondary,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextWrapped = true,
+    })
+    return label
+end
+
 -- ============================================
 -- SETTINGS PANEL
 -- ============================================
@@ -1208,9 +1338,10 @@ function Hexed:BuildSettingsPanel()
     self:CreateSlider(content, "Panel Gap", 0, 24, self.Config.PanelGap, 0, "px", function(v)
         self.Config.PanelGap = v
         for _, tab in ipairs(self.Tabs) do
-            local layout = tab.Content:FindFirstChildOfClass("UIGridLayout")
+            local layout = tab.Content.Grid:FindFirstChildOfClass("UIGridLayout")
             if layout then
                 layout.CellPadding = UDim2.new(0, v, 0, v)
+                layout.CellSize = UDim2.new(0.5, -math.floor(v / 2), 0.5, -math.floor(v / 2))
             end
         end
     end)
